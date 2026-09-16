@@ -1,0 +1,3 @@
+interface:
+  display_name: "短视频素材替换"
+  short_description: "生成配音并将素材嵌入短视频场景"

@@ -1,0 +1,28 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Local environments
+.venv/
+venv/
+env/
+
+# Generated media and review outputs
+outputs/
+*.mp4
+*.mov
+*.m4v
+*.wav
+*_screen_qc.jpg
+*_preview.jpg
+封面截图/
+遮罩/
+*.log
+
+# Local TTS / credential material must stay on the machine
+.env
+.env.*
+*.key
+*.pem
+*.p12
+config.json
