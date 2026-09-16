@@ -59,27 +59,31 @@ def quad_bbox(quad, w, h):
         sys.exit("[error] 屏幕四角坐标无效，无法形成有效区域。")
     return x0, y0, x1, y1
 
-def detect_screen(scene):
-    gray = cv2.cvtColor(scene, cv2.COLOR_BGR2GRAY)
+def detect_screen(scene, inset=3):
+    """近黑 + 低纹理（平坦）检测：暗背景也能定位平板黑屏。
+    单纯按灰度阈值会把暗桌面/橱柜一起框进来；叠加"局部标准差小"才能锁定平坦的屏幕。"""
+    g = cv2.cvtColor(scene, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    H, W = g.shape
+    k = (15, 15)
+    blur = cv2.blur(g, k); sq = cv2.blur(g * g, k)
+    std = np.sqrt(np.maximum(sq - blur * blur, 0))
+    core = ((g < 45) & (std < 8)).astype(np.uint8) * 255
+    core = cv2.morphologyEx(core, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
+    core = cv2.morphologyEx(core, cv2.MORPH_OPEN, np.ones((9, 9), np.uint8))
+    cnts, _ = cv2.findContours(core, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     best = None
-    for th in (15, 25, 35):
-        _, dark = cv2.threshold(gray, th, 255, cv2.THRESH_BINARY_INV)
-        dark = cv2.morphologyEx(dark, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
-        cnts, _ = cv2.findContours(dark, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for c in cnts:
-            x, y, w, h = cv2.boundingRect(c)
-            a = cv2.contourArea(c)
-            if a < scene.shape[0] * scene.shape[1] * 0.03:
-                continue
-            ar = w / max(h, 1)
-            if 0.45 <= ar <= 0.95 and a / (w * h) > 0.85:
-                if best is None or a > best[0]:
-                    best = (a, (x, y, x + w, y + h))
-        if best:
-            break
+    for c in cnts:
+        x, y, w, h = cv2.boundingRect(c)
+        a = cv2.contourArea(c)
+        if a < H * W * 0.03:
+            continue
+        if 0.5 <= w / max(h, 1) <= 0.95 and a / (w * h) > 0.80:
+            if best is None or a > best[0]:
+                best = (a, (x, y, x + w, y + h))
     if not best:
-        sys.exit("[error] 未检测到平板屏幕（纯黑矩形）。请用 --quad 手动指定。")
-    return best[1]
+        sys.exit("[error] 未检测到平板屏幕（近黑低纹理矩形）。请用 --quad 手动指定。")
+    x0, y0, x1, y1 = best[1]
+    return (x0 + inset, y0 + inset, x1 - inset, y1 - inset)
 
 def find_sections(page, vw):
     """按行边缘密度检测内容卡片顶边，返回 (锚点y列表, CTA中心y)"""
